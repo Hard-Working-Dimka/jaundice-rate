@@ -18,6 +18,7 @@ from anyio import create_task_group
 TEST_ARTICLES = [
                  ]
 
+MAX_TIME_OF_RUNNING_FUNC = 3
 
 class ProcessingStatus(Enum):
     OK = 'OK'
@@ -37,20 +38,21 @@ def count_runtime():
     time_of_start = time.monotonic()
     yield
     time_of_end = time.monotonic()
-    total_time = time_of_end - time_of_start
     logging.info(f'Анализ закончен за {time_of_end - time_of_start}')
 
 
 async def process_article(session, morph, charged_words, url, analyses):
     with count_runtime():
         try:
-            async with timeout(3):
+            async with timeout(MAX_TIME_OF_RUNNING_FUNC):
                 html = await fetch(session, url)
             text = sanitize(html, True)
 
-            article_words = split_by_words(morph, text)
+            async with timeout(MAX_TIME_OF_RUNNING_FUNC):
+                article_words = await split_by_words(morph, text)
+
             score = calculate_jaundice_rate(article_words, charged_words)
-            article_words_count = len(split_by_words(morph, text))
+            article_words_count = len(article_words)
 
             status = ProcessingStatus.OK.name
         except aiohttp.ClientError:
