@@ -6,19 +6,15 @@ from enum import Enum
 import aiofiles
 import aiohttp
 import asyncio
-
 import pymorphy2
 from async_timeout import timeout
-
 import adapters
 from adapters.inosmi_ru import sanitize
 from text_tools import split_by_words, calculate_jaundice_rate
 from anyio import create_task_group
 
-TEST_ARTICLES = [
-                 ]
-
 MAX_TIME_OF_RUNNING_FUNC = 3
+
 
 class ProcessingStatus(Enum):
     OK = 'OK'
@@ -83,23 +79,19 @@ async def read_file(filename):
     return cleaned_lines
 
 
-async def main():
-    logging.basicConfig(level=logging.DEBUG)
-
+async def start_analyses(urls: list):
     async with aiohttp.ClientSession() as session:
         charged_words = await read_file('lists_of_words/negative_words.txt')
         morph = pymorphy2.MorphAnalyzer()
         analyses = []
         async with create_task_group() as tg:
-            for article in TEST_ARTICLES:
+            for article in urls:
                 tg.start_soon(process_article, session, morph, charged_words, article, analyses)
 
-        for analysis in analyses:
-            print('Заголовок:', analysis['url'])
-            print('Рейтинг:', analysis['score'])
-            print('Слов в статье:', analysis['article_words'])
-            print('Статус:', analysis['status'])
-            print('-------------------------------------------------')
+    return analyses
 
 
-asyncio.run(main())
+if __name__ == '__main__':
+    logging.basicConfig(level=logging.DEBUG)
+    urls = []
+    asyncio.run(start_analyses(urls))
