@@ -7,13 +7,12 @@ import aiofiles
 import aiohttp
 import asyncio
 import pymorphy2
+import pytest
 from async_timeout import timeout
 import adapters
 from adapters.inosmi_ru import sanitize
 from text_tools import split_by_words, calculate_jaundice_rate
 from anyio import create_task_group
-
-MAX_TIME_OF_RUNNING_FUNC = 3
 
 
 class ProcessingStatus(Enum):
@@ -37,14 +36,14 @@ def count_runtime():
     logging.info(f'Анализ закончен за {time_of_end - time_of_start}')
 
 
-async def process_article(session, morph, charged_words, url, analyses):
+async def process_article(session, morph, charged_words, url, analyses, max_time_downloading, max_time_analyzing):
     with count_runtime():
         try:
-            async with timeout(MAX_TIME_OF_RUNNING_FUNC):
+            async with timeout(max_time_downloading):
                 html = await fetch(session, url)
             text = sanitize(html, True)
 
-            async with timeout(MAX_TIME_OF_RUNNING_FUNC):
+            async with timeout(max_time_analyzing):
                 article_words = await split_by_words(morph, text)
 
             score = calculate_jaundice_rate(article_words, charged_words)
@@ -79,19 +78,52 @@ async def read_file(filename):
     return cleaned_lines
 
 
-async def start_analyses(urls: list):
+async def start_analyses(urls: list, max_time_downloading, max_time_analyzing):
     async with aiohttp.ClientSession() as session:
         charged_words = await read_file('lists_of_words/negative_words.txt')
         morph = pymorphy2.MorphAnalyzer()
         analyses = []
         async with create_task_group() as tg:
             for article in urls:
-                tg.start_soon(process_article, session, morph, charged_words, article, analyses)
-
+                tg.start_soon(process_article, session, morph, charged_words, article, analyses, max_time_downloading,
+                              max_time_analyzing)
     return analyses
+
+
+@pytest.mark.asyncio
+async def test_start_analyses():
+    async with aiohttp.ClientSession() as session:
+        charged_words = await read_file('lists_of_words/negative_words.txt')
+        morph = pymorphy2.MorphAnalyzer()
+        analyses = []
+
+        urls = [
+            'https://inosmi.ru/20251025/mozg-275338210.html',  # OK
+            'https://example.com',  # PARSING_ERROR
+            'https://inosmi.ru/not/exist.html',  # FETCH_ERROR
+        ]
+
+        max_time_downloading = 3
+        max_time_analyzing = 3
+
+        await process_article(session, morph, charged_words, urls[0], analyses, max_time_downloading,
+                              max_time_analyzing)
+        assert analyses[0]['status'] == 'OK'
+
+        await process_article(session, morph, charged_words, urls[1], analyses, max_time_downloading,
+                              max_time_analyzing)
+        assert analyses[1]['status'] == 'PARSING_ERROR'
+
+        await process_article(session, morph, charged_words, urls[2], analyses, max_time_downloading,
+                              max_time_analyzing)
+        assert analyses[2]['status'] == 'FETCH_ERROR'
+
+        await process_article(session, morph, charged_words, urls[0], analyses, 10, 0.1)
+        assert analyses[3]['status'] == 'TIMEOUT'
+
+        await process_article(session, morph, charged_words, urls[0], analyses, 0.1, 10)
+        assert analyses[4]['status'] == 'TIMEOUT'
 
 
 if __name__ == '__main__':
     logging.basicConfig(level=logging.DEBUG)
-    urls = []
-    asyncio.run(start_analyses(urls))

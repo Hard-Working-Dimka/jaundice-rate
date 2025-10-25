@@ -2,6 +2,8 @@ from aiohttp import web
 from main import start_analyses
 
 MAX_URLS = 2
+MAX_TIME_DOWNLOADING = 3
+MAX_TIME_ANALYZING = 3
 
 
 async def handle(request):
@@ -12,7 +14,7 @@ async def handle(request):
         data = {'error': 'Too many urls'}
         return web.json_response(data=data, status=400, content_type='application/json', )
 
-    analyses = await start_analyses(urls)
+    analyses = await start_analyses(urls, MAX_TIME_DOWNLOADING, MAX_TIME_ANALYZING)
 
     data = []
     for analysis in analyses:
@@ -31,4 +33,4 @@ app.add_routes([web.get('/', handle)])
 
 if __name__ == '__main__':
     web.run_app(app)
-    # web.run_app(app, access_log=None)
+    # web.run_app(app, access_log=None) FIXME: turn on to fix error with start time (aiohttp)
