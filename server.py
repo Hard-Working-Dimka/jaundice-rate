@@ -33,4 +33,3 @@ app.add_routes([web.get('/', handle)])
 
 if __name__ == '__main__':
     web.run_app(app)
-    # web.run_app(app, access_log=None) FIXME: turn on to fix error with start time (aiohttp)
