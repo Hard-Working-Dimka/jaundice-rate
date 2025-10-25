@@ -1,13 +1,17 @@
-import json
-
 from aiohttp import web
 from main import start_analyses
+
+MAX_URLS = 2
 
 
 async def handle(request):
     raw_data = request.query.get('urls')
-
     urls = [url for url in raw_data.split(',')]
+
+    if len(urls) > MAX_URLS:
+        data = {'error': 'Too many urls'}
+        return web.json_response(data=data, status=400, content_type='application/json', )
+
     analyses = await start_analyses(urls)
 
     data = []
@@ -19,8 +23,7 @@ async def handle(request):
             'Статус:': analysis['status'],
         })
 
-    return web.json_response(data, text=None, body=None, status=200, reason=None, headers=None,
-                             content_type='application/json', dumps=json.dumps)
+    return web.json_response(data, status=200, reason=None, content_type='application/json')
 
 
 app = web.Application()
