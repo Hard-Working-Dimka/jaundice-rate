@@ -1,3 +1,6 @@
+from functools import partial
+
+import pymorphy2
 from aiohttp import web
 from main import start_analyses
 
@@ -6,7 +9,7 @@ MAX_TIME_DOWNLOADING = 3
 MAX_TIME_ANALYZING = 3
 
 
-async def handle(request):
+async def handle(request, morph):
     raw_data = request.query.get('urls')
     urls = [url for url in raw_data.split(',')]
 
@@ -14,7 +17,7 @@ async def handle(request):
         data = {'error': 'Too many urls'}
         return web.json_response(data=data, status=400, content_type='application/json', )
 
-    analyses = await start_analyses(urls, MAX_TIME_DOWNLOADING, MAX_TIME_ANALYZING)
+    analyses = await start_analyses(urls, MAX_TIME_DOWNLOADING, MAX_TIME_ANALYZING, morph)
 
     data = []
     for analysis in analyses:
@@ -28,8 +31,12 @@ async def handle(request):
     return web.json_response(data, status=200, reason=None, content_type='application/json')
 
 
-app = web.Application()
-app.add_routes([web.get('/', handle)])
-
 if __name__ == '__main__':
+    morph = pymorphy2.MorphAnalyzer()
+
+    handle = partial(handle, morph=morph)
+
+    app = web.Application()
+    app.add_routes([web.get('/', handle)])
+
     web.run_app(app)

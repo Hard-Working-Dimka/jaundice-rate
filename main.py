@@ -78,10 +78,9 @@ async def read_file(filename):
     return cleaned_lines
 
 
-async def start_analyses(urls: list, max_time_downloading, max_time_analyzing):
+async def start_analyses(urls: list, max_time_downloading, max_time_analyzing, morph):
     async with aiohttp.ClientSession() as session:
         charged_words = await read_file('lists_of_words/negative_words.txt')
-        morph = pymorphy2.MorphAnalyzer()
         analyses = []
         async with create_task_group() as tg:
             for article in urls:
